@@ -21,12 +21,12 @@
 #'        for example, "COOKIE_ID" becomes "cookie.id".
 #' @param verbose If set to \code{TRUE}, prints the \code{SQL} before the query begins and the elapsed execution time after it ends. 
 #' @param var.list If not NULL, variables in \code{SQL} are substituted with values defined in the \code{var.list}. 
-#'        Use \code{db.cast()} to set proper data types. Note that substitution is recursive (left to right), 
+#'        Use \code{tmpl.cast()} to set proper data types. Note that substitution is recursive (left to right), 
 #'        so you can use vars inside other vars, as long as the var order is correct.
 #' @param col.types Optional list specifying the resulting column types. If a column name in the resulting 
 #'        data frame matches a name in the col.types (case-insensitive), that column is converted to the specified type.
 #'        The default is taken from the \code{NZCOL.TYPES} option.
-#'        See \code{\link{db.convert.cols}} and \code{\link{db.nzset.coltypes}}.
+#'        See \code{\link{tmpl.convert.cols}} and \code{\link{db.nzset.coltypes}}.
 #' @param all.literal If \code{TRUE}, all strings in \code{var.list} are treated as literals, i.e., 
 #'        they won't be enclosed in quotes. This is useful when there are no strings that need to be 
 #'        quoted. 
@@ -40,7 +40,7 @@
 #'           type = THISSTRING group by cookie_id"
 #' db.nzquery(query, var.list = list(THISDATE = as.Date('2012-04-01'), 
 #'           THISSTRING = 'fnl', 
-#'           MYTABLE = db.cast('this_table_THISRUNID', 'literal'), 
+#'           MYTABLE = tmpl.cast('this_table_THISRUNID', 'literal'), 
 #'           THISRUNID = 32))
 #' #
 #' # Example of using col.types
@@ -58,46 +58,46 @@
 #' @name db.nzquery
 #' @aliases db.nzquery
 #' @title ODBC interface to Netezza
-#' @seealso \code{\link{db.read.nz}}, \code{\link{db.varsub.sql}}
+#' @seealso \code{\link{db.read.nz}}, \code{\link{tmpl.varsub.sql}}
 #' @rdname db.nzquery
 # JMS: two changes: i) make var.list 2nd argument, 2) set verbose to default to TRUE 
 db.nzquery <- function(SQL, var.list = NULL, dsn = db.get.nzdsn(caller = "db.nzquery"), 
-      convert.names = FALSE, verbose = db.get.option("NZQUERY.VERBOSE", default = FALSE), 
+      convert.names = FALSE, verbose = tmpl.get.option("NZQUERY.VERBOSE", default = FALSE), 
       col.types = getOption("NZCOL.TYPES"), all.literal = FALSE, as.is = FALSE)
 {
-   if (db.db.connected()) db.db.disconnect()
+   if (db.connected()) db.disconnect()
    
    # Connect to the database (e.g., TF3)
-   db.db.connect(dsn)
+   db.connect(dsn)
    
    if (!is.null(getOption("NZPRIORITY")))
    {
       if (tolower(getOption("NZPRIORITY")) == "high")
       {
-         db.db.query("alter session set priority to high")
+         db.query("alter session set priority to high")
       }
    }
    
    # Substitute variables
-   if (!is.null(var.list)) SQL <- db.varsub.sql(SQL, var.list, all.literal = all.literal)
+   if (!is.null(var.list)) SQL <- cm.varsub.sql(SQL, var.list, all.literal = all.literal)
    
    # Print query
    if (verbose) writeLines(paste("db.nzquery sql:", SQL))
    
    # Get data
    if (verbose) tic("db.nzquery") 
-   frm <- db.db.query(SQL, as.is = as.is)
+   frm <- db.query(SQL, as.is = as.is)
    if (verbose) toc()
    
    # Disconnect from the database
-   db.db.disconnect()
+   db.disconnect()
       
    # Clean up names
    if (convert.names) names(frm) <- gsub("_", ".", tolower(names(frm)))
    
    # Return frm
    if (is.null(col.types)) return(frm)
-   return(db.convert.cols(frm, col.types))      
+   return(cm.convert.cols(frm, col.types))      
 }
 
 #-------------------------------------------------------------------------------
@@ -108,24 +108,24 @@ db.nzquery <- function(SQL, var.list = NULL, dsn = db.get.nzdsn(caller = "db.nzq
 #' @return \code{db.nzexec} - A list of data frames with results for each query.
 #' @rdname db.nzquery
 db.nzexec <- function(sql.vec, var.list = NULL, dsn = db.get.nzdsn(caller = "db.nzexec"), 
-      convert.names = FALSE, verbose = db.get.option("NZQUERY.VERBOSE", default = FALSE), 
+      convert.names = FALSE, verbose = tmpl.get.option("NZQUERY.VERBOSE", default = FALSE), 
       col.types = getOption("NZCOL.TYPES"), all.literal = FALSE, as.is = FALSE)
 {
-   if (db.db.connected()) db.db.disconnect()
+   if (db.connected()) db.disconnect()
    
    # Connect to the database (e.g., TF3)
-   db.db.connect(dsn)
+   db.connect(dsn)
    
    if (!is.null(getOption("NZPRIORITY")))
    {
       if (tolower(getOption("NZPRIORITY")) == "high")
       {
-         db.db.query("alter session set priority to high")
+         db.query("alter session set priority to high")
       }
    }
    
    # Substitute variables
-   if (!is.null(var.list)) sql.vec <- db.varsub.sql(sql.vec, var.list, all.literal = all.literal)
+   if (!is.null(var.list)) sql.vec <- cm.varsub.sql(sql.vec, var.list, all.literal = all.literal)
    
    # Get data
    res <- lapply(sql.vec, 
@@ -136,19 +136,19 @@ db.nzexec <- function(sql.vec, var.list = NULL, dsn = db.get.nzdsn(caller = "db.
             
             # Run the query
             if (verbose) tic("db.nzexec")
-            frm <- db.db.query(s, as.is = as.is)
+            frm <- db.query(s, as.is = as.is)
             if (verbose) toc()
             
             # Clean up names
             if (convert.names) names(frm) <- gsub("_", ".", tolower(names(frm)))
             
             # Convert types and return
-            if (!is.null(col.types)) return(db.convert.cols(frm, col.types)) 
+            if (!is.null(col.types)) return(cm.convert.cols(frm, col.types)) 
             return(frm) 
          }) 
       
    # Disconnect from the database
-   db.db.disconnect()
+   db.disconnect()
    
    return(res)
 }
@@ -170,23 +170,23 @@ db.get.nzdsn <- function(caller = "")
 
 #-------------------------------------------------------------------------------
 
-#' \code{db.set.nzdsn} - Helper function setting the \code{NZDSN} option, which allows
+#' \code{cm.set.nzdsn} - Helper function setting the \code{NZDSN} option, which allows
 #' many other functions to use it as the default DSN.
 #' @rdname db.nzquery
-db.set.nzdsn <- function(dsn) 
+cm.set.nzdsn <- function(dsn) 
 {
    options(NZDSN = dsn)
 }
 
 #-------------------------------------------------------------------------------
 
-#' \code{db.set.nzcol.types} sets the option \code{NZCOL.TYPES} that is passed to 
+#' \code{cm.set.nzcol.types} sets the option \code{NZCOL.TYPES} that is passed to 
 #' \code{\link{db.nzquery}} as the default for the \code{col.types} parameter. 
 #' This utility function generates both variants of the column names: the
 #' original column names using underscores, as well as the naming convention 
 #' using dots (when \code{convert.names} option in \code{db.nzquery} is set to TRUE).
 #' @usage 
-#' db.set.nzcol.types(col.types = list(
+#' cm.set.nzcol.types(col.types = list(
 #'             user_hash      = "int64"
 #'             , run_id       = "int64"
 #'             , uid          = "int64"
@@ -201,7 +201,7 @@ db.set.nzdsn <- function(dsn)
 #'       ))
 #' 
 #' @rdname db.nzquery
-db.set.nzcol.types <- function(col.types = list(
+cm.set.nzcol.types <- function(col.types = list(
             user_hash      = "int64"
             , run_id       = "int64"
             , uid          = "int64"
@@ -236,8 +236,8 @@ db.set.nzcol.types <- function(col.types = list(
 #' @rdname db.nzquery
 db.nzinfo <- function(dsn = db.get.nzdsn(caller = "db.nzinfo"))
 {
-   df <- db.db.dsn.attr(dsn = dsn)
-   writeLines(db.format.df(data.frame(FIELD = names(df), VALUE = t(df))))
+   df <- db.dsn.attr(dsn = dsn)
+   writeLines(tmpl.format.df(data.frame(FIELD = names(df), VALUE = t(df))))
    invisible(df)
 }
 
@@ -338,7 +338,7 @@ db.nzshow.tables <- function(pattern = NULL, dsn = db.get.nzdsn("db.nzshow.table
 
 #' \code{db.nzdrop.tables} - drops tables listed in tab.names, checking first if the tables exist. 
 #' @param tab.names A vector of table names.
-#' @param dsn In \code{db.nzdrop.tables} and \code{db.delete.records}, 
+#' @param dsn In \code{db.nzdrop.tables} and \code{cm.delete.records}, 
 #'        connection DSN, which must be specified by the caller (no default for a bit more safety).
 #' @rdname db.nzdml
 db.nzdrop.tables <- function(tab.names, 
@@ -349,7 +349,7 @@ db.nzdrop.tables <- function(tab.names,
    ix.exist <- db.nzexist.tables(tab.names = tab.names, dsn = dsn)
    if (sum(ix.exist) > 0)
    {      
-      db.log(1, paste("DROPPING TABLES: ", db.quote.csv(tab.names[ix.exist])))
+      tmpl.log(1, paste("DROPPING TABLES: ", tmpl.quote.csv(tab.names[ix.exist])))
       sql <- paste("drop table", tab.names[ix.exist])
       res <- db.nzexec(sql, dsn = dsn, verbose = verbose)
    }
@@ -363,22 +363,22 @@ db.nzdrop.tables <- function(tab.names,
 #' @param pklist A list, containing the keys. Each item's name must match 
 #'         a column in the table, and its value is the value to filter by.
 #'         The items in the list can use the types provided by 
-#'         \code{\link{db.cast}} for correct quoting within SQL.
+#'         \code{\link{tmpl.cast}} for correct quoting within SQL.
 #' @param verbose If \code{TRUE} prints the query and timing.
 #' @inheritParams db.nzdrop.tables
 #' @examples 
 #' \dontrun{
-#' # > db.delete.bykey("mytab", list(name = "somename", 
-#' # + to_date = db.cast("2011-12-11", "date")), dsn="NZS", verbose=T)
+#' # > db.nzdelete.bykey("mytab", list(name = "somename", 
+#' # + to_date = tmpl.cast("2011-12-11", "date")), dsn="NZS", verbose=T)
 #' # [1] "delete from mytab where name = 'somename' and to_date = '2011-12-11'::date"
 #' }
-#' @seealso \code{\link{db.quote.sql}}, \code{\link{db.cast}}
+#' @seealso \code{\link{tmpl.quote.sql}}, \code{\link{tmpl.cast}}
 #' @rdname db.nzdml
 db.nzdelete.bykey <- function(tab.name, pklist, verbose = FALSE,
-      dsn = stop("db.delete.records: 'dsn' must be specified explicitly."))
+      dsn = stop("db.nzdelete.bykey: 'dsn' must be specified explicitly."))
 {
    cols <- names(pklist)
-   vals <- lapply(pklist, function(x) db.quote.sql(x))
+   vals <- lapply(pklist, function(x) tmpl.quote.sql(x))
    filters <- paste(paste(cols, "=", vals), collapse = " and ")
    sql <- paste("delete from ", tab.name, " where ", filters, sep="")
    db.nzquery(sql, dsn = dsn, verbose = verbose)
@@ -388,7 +388,7 @@ db.nzdelete.bykey <- function(tab.name, pklist, verbose = FALSE,
 
 #' \code{db.nzexists.bykey} - checks if there are records in the specified table
 #' that match the specified list of keys 
-#' @inheritParams db.delete.bykey
+#' @inheritParams cm.delete.bykey
 #' @param stop.if.any \code{db.nzexists.bykey} stops if any rows matched the key values in \code{pklist}. 
 #'    \code{db.nzdata.check} stops if \code{value} exists in the given table and column.
 #' @param stop.if.none \code{db.nzexists.bykey} stops if no rows matched the key values in \code{pklist}.
@@ -403,7 +403,7 @@ db.nzexists.bykey <- function(tab.name
 )
 {
    cols <- names(pklist)
-   vals <- lapply(pklist, function(x) db.quote.sql(x))
+   vals <- lapply(pklist, function(x) tmpl.quote.sql(x))
    filters <- paste(paste(cols, "=", vals), collapse = " and ")
    sql <- paste("select count(*) as cnt from  (select ", cols[1], " from ", tab.name, " where ", filters, " limit 1) a", sep="")
    res <- db.nzquery(sql, dsn = dsn, verbose = verbose)
@@ -463,8 +463,8 @@ db.nzdata.check <- function(
 #' a \code{data.frame} to pass to this function, be careful to use \code{stringsAsFactors = FALSE}
 #' to ensure proper quoting of the values.
 #' Returns a vector of SQL statements.
-#' @inheritParams db.delete.bykey
-#' @seealso \code{\link{db.write.nz}}
+#' @inheritParams cm.delete.bykey
+#' @seealso \code{\link{cm.write.nz}}
 #' @rdname db.nzdml
 db.nzinsert.sql <- function(tab.name, pklist)
 {
@@ -479,7 +479,7 @@ db.nzinsert.sql <- function(tab.name, pklist)
    # Comma-separated column names
    cols <- paste(gsub("\\.", "_", names(pklist)), collapse=", ")
    # apply appropriate quotes to values; still a list
-   vals <- lapply(pklist, function(x) db.quote.sql(x))
+   vals <- lapply(pklist, function(x) tmpl.quote.sql(x))
    # convert to a vector of comma-separated lists of values
    sql.vals <- unlist(lapply(1:len, function(i) paste(unlist(lapply(vals, function(x) x[i])), collapse = ", ")))
    # generate a vector of sql statements
@@ -497,7 +497,7 @@ db.nzinsert.sql <- function(tab.name, pklist)
 #' \code{insert into ... (...) values (...)}. 
 #' Returns the (invisible) number of rows inserted.
 #' @param gen.stats Flag indicating whether statistics should be run on the table after inserting.
-#' @inheritParams db.delete.bykey
+#' @inheritParams cm.delete.bykey
 #' @rdname db.nzdml
 db.nzinsert <- function(tab.name, pklist, verbose = FALSE, gen.stats = FALSE,
       dsn = stop("db.nzinsert: 'dsn' must be specified explicitly."))
@@ -519,7 +519,7 @@ db.nzinsert <- function(tab.name, pklist, verbose = FALSE, gen.stats = FALSE,
 
 #-------------------------------------------------------------------------------
 
-#' \code{db.create.robjects} - creates a table for storing 
+#' \code{cm.create.robjects} - creates a table for storing 
 #' binary data (mostly for persisting R objects) and a view that excludes the actual data for convienience.
 #' 
 #' The \code{tab.robjects} table has the following fields:
@@ -543,7 +543,7 @@ db.nzinsert <- function(tab.name, pklist, verbose = FALSE, gen.stats = FALSE,
 #' @name db.nzsave.rdata
 #' @title Save and restore R objects to/from the database.        
 #' @rdname db.nzsave.rdata
-db.create.robjects <- function(tab.robjects, dsn = db.get.nzdsn("db.create.robjects"))
+cm.create.robjects <- function(tab.robjects, dsn = db.get.nzdsn("cm.create.robjects"))
 {
    db.nzquery(
          paste("create table ", tab.robjects, "(",               
@@ -601,7 +601,7 @@ group by uid, name, version, ts, owner_name, label, description, object_info"
 #' @param tmpdir Temporary directory used to save the R objects and convert them to uuencoded text.
 #' @param envir (\code{db.nzsave.rdata}) Environment to search for objects to be saved.
 #' @return \code{db.nzsave.rdata} - (Invisible) vector of names of the saved objects.
-#' @seealso \code{\link{db.uid}}
+#' @seealso \code{\link{cm.uid}}
 #' @rdname db.nzsave.rdata
 db.nzsave.rdata <- function(..., uid, tab.robjects = "robjects", overwrite = FALSE,
       owner.name = System$getUsername(), name = "", version = "", label = "", description = "", 
@@ -631,7 +631,7 @@ db.nzsave.rdata <- function(..., uid, tab.robjects = "robjects", overwrite = FAL
    }
    
    # Read it in.
-   frm <- read.csv(file.uu, header=F, stringsAsFactors=F)  # small, so no need to use db.read.csv
+   frm <- read.csv(file.uu, header=F, stringsAsFactors=F)  # small, so no need to use cm.read.csv
    
    # Remove files
    unlink(file.r)
@@ -748,15 +748,15 @@ db.nzload.rdata.ex <- function(tab.robjects = "robjects",
       do.load = TRUE, tmpdir = "/tmp", envir = sys.frame(sys.parent()))
 {   
    filter <- unlist(list(
-                 name       = db.cast(where.name      , "character")
-               , version    = db.cast(where.version   , "character")
-               , owner_name = db.cast(where.owner     , "character")
-               , label      = db.cast(where.label     , "character")
+                 name       = tmpl.cast(where.name      , "character")
+               , version    = tmpl.cast(where.version   , "character")
+               , owner_name = tmpl.cast(where.owner     , "character")
+               , label      = tmpl.cast(where.label     , "character")
                ))
    if (length(filter) > 0)
    {
       cols <- names(filter)
-      vals <- unlist(lapply(filter, function(x) db.quote.sql(x)))
+      vals <- unlist(lapply(filter, function(x) tmpl.quote.sql(x)))
       where.sql <- paste(paste(cols, "=", vals), collapse = " and ") 
       where.sql <- paste("where", where.sql)
    }
@@ -823,7 +823,7 @@ db.nztable.integrity <- function(
 {
    
    filter.cols <- toupper(gsub("\\.", "_", names(filter.lst)))   # convert all dots to "_"
-   filter.vals <- lapply(filter.lst, function(x) db.quote.sql(x))
+   filter.vals <- lapply(filter.lst, function(x) tmpl.quote.sql(x))
    filters <- paste(paste(filter.cols, "=", filter.vals), collapse = " and ")
    filters <- paste("(", filters, ")", sep = "")   # enclose in parens
    #sql <- paste("select count(*) as cnt from  (select ", cols[1], " from ", tab.name, " where ", filters, " limit 1) a", sep="")   
@@ -881,7 +881,7 @@ db.nztable.integrity <- function(
       if (nrow(frm.pk) > 0) {
          
          # Collapse the data.frame for printing
-         collapsed.df <- db.collapse.df(frm.pk) 
+         collapsed.df <- cm.collapse.df(frm.pk) 
          
          # Construct error message
          error.message <- paste("db.nztable.integrity: ", table.name, " violated primary key constraint:\n", collapsed.df, sep = "")
@@ -1077,7 +1077,7 @@ db.nzget.ddl <- function(table.name, dsn = db.get.nzdsn(), rename.to = table.nam
     , dsn = dsn, verbose = FALSE, as.is = TRUE)  # as.is = TRUE so that R doesn't try to interpret empty strings as NA
    
    df.ddl[1, 1] <- ""
-   ddl.body <- db.format.df(df.ddl, header.line = FALSE, header = FALSE)
+   ddl.body <- tmpl.format.df(df.ddl, header.line = FALSE, header = FALSE)
    ddl.create <- paste("CREATE TABLE ", toupper(rename.to), " (", sep = "")
    ddl.footer <- ")"
    
@@ -1164,7 +1164,7 @@ db.nzmigrate <- function(tab.src, dsn.src, tab.dest, dsn.dest,
    db.nzquery(ddl.dest, dsn = dsn.dest)
    
    # Temp file name for external table.
-   tmp.uid <- db.uid()
+   tmp.uid <- tmpl.uid()
    tmp.file <- paste("tmp_nzmigrate_", tmp.uid, sep = "")
    tmp.path.src <- paste(tmpdir.src, tmp.file, sep = "/")
    tmp.path.dest <- paste(tmpdir.dest, tmp.file, sep = "/")
@@ -1174,13 +1174,13 @@ db.nzmigrate <- function(tab.src, dsn.src, tab.dest, dsn.dest,
    db.nzquery("
                create external table TAB.EXT sameas TAB.SRC 
                using (dataobject (PATH.SRC) compress TRUE format 'internal')
-               ", var.list = list(TAB.EXT = db.literal(tmp.ext.tab), TAB.SRC = db.literal(tab.src), PATH.SRC = tmp.path.src), 
+               ", var.list = list(TAB.EXT = tmpl.literal(tmp.ext.tab), TAB.SRC = tmpl.literal(tab.src), PATH.SRC = tmp.path.src), 
          verbose = FALSE, dsn = dsn.src)
    
    # Export data into an external table.
    if (verbose) print("Exporting...")
    res <- db.nzquery("insert into TAB.EXT SQL.SRC", 
-         var.list = list(TAB.EXT = db.literal(tmp.ext.tab), SQL.SRC = db.literal(query.sql)), 
+         var.list = list(TAB.EXT = tmpl.literal(tmp.ext.tab), SQL.SRC = tmpl.literal(query.sql)), 
          verbose = verbose, dsn = dsn.src)   
    
    # Make the file available to the destination
@@ -1195,12 +1195,12 @@ db.nzmigrate <- function(tab.src, dsn.src, tab.dest, dsn.dest,
    db.nzquery("
                create external table TAB.EXT sameas TAB.DEST 
                using (dataobject (PATH.DEST) compress TRUE format 'internal')
-               ", var.list = list(TAB.EXT = db.literal(tmp.ext.tab), TAB.DEST = db.literal(tab.dest), PATH.DEST = tmp.path.dest), 
+               ", var.list = list(TAB.EXT = tmpl.literal(tmp.ext.tab), TAB.DEST = tmpl.literal(tab.dest), PATH.DEST = tmp.path.dest), 
          verbose = FALSE, dsn = dsn.dest)
    
    # Load the data into the destination table
    db.nzquery("insert into TAB.DEST select * from TAB.EXT", 
-      var.list = list(TAB.EXT = db.literal(tmp.ext.tab), TAB.DEST = db.literal(tab.dest)), 
+      var.list = list(TAB.EXT = tmpl.literal(tmp.ext.tab), TAB.DEST = tmpl.literal(tab.dest)), 
       verbose = verbose, dsn = dsn.dest)            
    
    # Drop the external tables
